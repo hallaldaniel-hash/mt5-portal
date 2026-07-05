@@ -272,14 +272,18 @@ class MT5AccountCreateRequest(BaseModel):
     broker_name: str
     server: str
     login: str
-    sync_password: str
+
+    # Step 28:
+    # The portal must not require MT5 master/trading credentials.
+    # This field remains optional only for backward compatibility with old data/API calls.
+    sync_password: str | None = None
+
     investor_login: str
     investor_password: str
     currency: str | None = None
     is_cent_account: bool = True
     status: MT5AccountStatus = MT5AccountStatus.PENDING
     notes: str | None = None
-
 
 class MT5SnapshotCreateRequest(BaseModel):
     broker_server_time: datetime
@@ -654,7 +658,6 @@ def mt5_account_to_admin_dict(account: Any) -> dict[str, Any]:
         "broker_name": account.broker_name,
         "server": account.server,
         "login": account.login,
-        "sync_password": account.sync_password.masked(),
         "investor_login": account.investor_login,
         "investor_password": account.investor_password.masked(),
         "currency": account.currency,
@@ -662,8 +665,13 @@ def mt5_account_to_admin_dict(account: Any) -> dict[str, Any]:
         "status": account.status.value,
         "notes": account.notes,
         "created_at": account.created_at.isoformat(),
-    }
 
+        # Step 28 read-only safety metadata.
+        "read_only_mode": True,
+        "credential_mode": "investor_view_only",
+        "master_password_required": False,
+        "notice": "This MT5 account is connected with investor/view-only access. The portal cannot trade or modify the account.",
+    }
 
 def snapshot_to_dict(snapshot: Any) -> dict[str, Any]:
     return {
@@ -1306,10 +1314,15 @@ def create_app(db_path: str | Path = ":memory:", secret_key: str | None = None) 
         }
 
     @app.post("/api/groups/{group_id}/mt5-accounts", status_code=status.HTTP_201_CREATED)
-    def api_create_mt5_account(group_id: str, payload: MT5AccountCreateRequest, api_state: APIState = Depends(state)) -> dict[str, Any]:
+    def api_create_mt5_account(
+        group_id: str,
+        payload: MT5AccountCreateRequest,
+        api_state: APIState = Depends(state),
+    ) -> dict[str, Any]:
         group = get_group(api_state.conn, group_id)
         if group is None:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Group not found")
+
         try:
             account = create_mt5_account(
                 group=group,
@@ -1327,9 +1340,10 @@ def create_app(db_path: str | Path = ":memory:", secret_key: str | None = None) 
             )
             save_mt5_account(api_state.conn, account, secret_cipher=api_state.secret_cipher)
             return mt5_account_to_admin_dict(account)
+
         except ValueError as exc:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
-
+            
     @app.get("/api/groups/{group_id}/mt5-accounts")
     def api_list_mt5_accounts(group_id: str, api_state: APIState = Depends(state)) -> list[dict[str, Any]]:
         if get_group(api_state.conn, group_id) is None:
@@ -1673,7 +1687,12 @@ def create_app(db_path: str | Path = ":memory:", secret_key: str | None = None) 
                 broker_name=payload.broker_name,
                 server=payload.server,
                 login=payload.login,
+            
+                # Step 28:
+                # Optional legacy compatibility only.
+                # New UI should not ask for this.
                 sync_password=payload.sync_password,
+            
                 investor_login=payload.investor_login,
                 investor_password=payload.investor_password,
                 currency=payload.currency,

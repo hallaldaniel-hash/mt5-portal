@@ -178,8 +178,11 @@ def test_admin_can_create_mt5_account_through_protected_route() -> None:
     assert payload["group_id"] == group_id
     assert payload["nickname"] == "Main XAUUSD Cent"
     assert payload["display_divisor"] == "100"
-    assert payload["sync_password"] == "********"
+    assert "sync_password" not in payload
     assert payload["investor_password"] == "********"
+    assert payload["read_only_mode"] is True
+    assert payload["credential_mode"] == "investor_view_only"
+    assert payload["master_password_required"] is False
 
     listed = client.get(f"/api/admin/groups/{group_id}/mt5-accounts", headers=headers)
     assert listed.status_code == 200

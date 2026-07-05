@@ -500,8 +500,7 @@ function setupHelpIcons() {
     ['#groupForm h3', 'Create a separate pool/group. Each group can have its own clients, MT5 accounts, and commission rules.'],
     ['#memberForm h3', 'Add a client to a group as a normal client or partner.'],
     ['#depositForm h3', 'Record money that a client deposited outside the portal. It becomes part of calculations when made effective.'],
-    ['#mt5Form h3', 'Add MT5 account details for a group. For cent accounts, values are divided by 100.'],
-    ['#snapshotForm h3', 'Manually enter MT5 balance/equity data for testing before live MT5 sync.'],
+    ['#mt5Form h3', 'Add MT5 investor-view credentials only. The portal is read-only and cannot trade, withdraw, or modify the account.'],
     ['#loadClientDashboard', 'Admin-only view of one client dashboard for checking balances.'],
     ['#loadGroupDashboard', 'Shows group balances and MT5 read-only details for the selected group.'],
     ['#loadWorkflowInboxButton', 'Loads all pending deposits, withdrawals, expenses, and transfers for the selected group.'],
@@ -778,8 +777,8 @@ async function loadClientSelfDashboard() {
     account: account.nickname,
     broker: account.broker_name,
     server: account.server,
-    login: account.investor_login,
-    password: account.investor_password,
+    investor_login: account.investor_login,
+    read_only: account.read_only_notice || 'Investor view-only access',
     balance: account.latest_balance || '',
   })));
   fillSelect('clientWithdrawalGroupSelect', groups.map((group) => `<option value="${group.group_id}">${escapeHtml(group.group_name || group.group_id)} · available ${money(group.available_balance)}</option>`).join(''));
@@ -1188,6 +1187,12 @@ window.addEventListener('DOMContentLoaded', async () => {
   await submitForm('mt5Form', 'mt5Result', (payload) => {
     const groupId = payload.group_id;
     delete payload.group_id;
+
+    // Step 28:
+    // The UI no longer asks for master/sync password.
+    // This also protects against old cached forms or browser autofill.
+    delete payload.sync_password;
+
     return api(`/api/admin/groups/${groupId}/mt5-accounts`, { method: 'POST', body: JSON.stringify(payload) });
   });
 

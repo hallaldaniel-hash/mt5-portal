@@ -48,43 +48,39 @@
         <small>Deposits, withdrawals, expenses</small>
       </div>
     </section>
-    <section id="authPanel" class="card">
+    <section id="authPanel" class="card auth-card">
       <h2>Login</h2>
-      <p class="muted">Create the first admin once, then log in as admin or client.</p>
-      <div class="two-col">
-        <form id="setupAdminForm" class="form-grid panel">
-          <h3>First admin setup</h3>
-          <label>Username<input name="username" required value="admin" /></label>
-          <label>Password<input name="password" type="password" required minlength="6" value="secret123" /></label>
-          <button type="submit">Create first admin</button>
-          <pre id="setupAdminResult" class="result"></pre>
-        </form>
+      <p class="muted">Access your MT5 investment portal.</p>
 
-        <form id="loginForm" class="form-grid panel">
-          <h3>Login</h3>
-          <label>Username<input name="username" required /></label>
-          <label>Password<input name="password" type="password" required /></label>
-          <button type="submit">Login</button>
-          <pre id="loginResult" class="result"></pre>
-        </form>
-      </div>
-      <div class="two-col auth-extra">
+      <form id="loginForm" class="form-grid panel login-panel">
+        <h3>Sign in</h3>
+        <label>Username<input name="username" required /></label>
+        <label>Password<input name="password" type="password" required /></label>
+        <button type="submit">Login</button>
+        <a class="small-link" href="#passwordResetRequestForm">Forgot password?</a>
+        <pre id="loginResult" class="result"></pre>
+      </form>
+
+      <details class="auth-extra compact-auth-extra">
+        <summary>Forgot password</summary>
+
         <form id="passwordResetRequestForm" class="form-grid panel">
-          <h3>Forgot password</h3>
-          <p class="muted">Clients can reset by email once an email is saved on their profile.</p>
+          <h3>Request password reset</h3>
+          <p class="muted">Enter your username or email. Password reset works once an email is saved on your profile.</p>
           <label>Username or email<input name="identifier" required /></label>
           <button type="submit">Send reset link</button>
           <pre id="passwordResetRequestResult" class="result"></pre>
         </form>
+
         <form id="passwordResetConfirmForm" class="form-grid panel">
           <h3>Set new password</h3>
-          <p class="muted">Local development shows a reset token here. Production will email a private link instead.</p>
+          <p class="muted">Use the reset token sent to your email. In local development, the token may appear in the server response.</p>
           <label>Reset token<input name="token" required /></label>
           <label>New password<input name="new_password" type="password" required minlength="6" /></label>
           <button type="submit">Reset password</button>
           <pre id="passwordResetConfirmResult" class="result"></pre>
         </form>
-      </div>
+      </details>
     </section>
 
     <section id="adminPanel" class="hidden">
@@ -155,35 +151,41 @@
       </section>
 
       <section class="card">
+      <section class="card">
         <h2>MT5 accounts</h2>
+        <p class="muted">
+          Step 28 read-only mode: MT5 accounts are connected with investor/view-only access only.
+          The portal cannot trade, withdraw, or modify the trading account.
+        </p>
+
         <div class="two-col">
           <form id="mt5Form" class="form-grid panel">
-            <h3>Add MT5 account</h3>
+            <h3>Add MT5 investor-view account</h3>
             <label>Group<select name="group_id" id="mt5GroupSelect" required></select></label>
             <label>Nickname<input name="nickname" required value="Main Cent Account" /></label>
             <label>Broker name<input name="broker_name" required /></label>
             <label>Server<input name="server" required /></label>
-            <label>Login<input name="login" required /></label>
-            <label>Sync/master password<input name="sync_password" type="password" required /></label>
+            <label>MT5 account login<input name="login" required /></label>
             <label>Investor login<input name="investor_login" required /></label>
             <label>Investor password<input name="investor_password" type="password" required /></label>
             <label>Status<select name="status"><option value="pending">Pending</option><option value="live">Live</option></select></label>
             <label class="checkbox"><input name="is_cent_account" type="checkbox" checked /> Cent account, divide MT5 values by 100</label>
-            <button type="submit">Create MT5 account</button>
+            <button type="submit">Create read-only MT5 account</button>
             <pre id="mt5Result" class="result"></pre>
           </form>
 
-          <form id="snapshotForm" class="form-grid panel">
-            <h3>Add manual MT5 snapshot</h3>
-            <label>MT5 account<select name="account_id" id="snapshotAccountSelect" required></select></label>
-            <label>Broker server time<input name="broker_server_time" type="datetime-local" required /></label>
-            <label>Broker server day<input name="broker_server_day" type="date" required /></label>
-            <label>Raw balance<input name="raw_balance" value="270000" required /></label>
-            <label>Raw equity<input name="raw_equity" value="270000" required /></label>
-            <label>Raw profit<input name="raw_profit" value="0" /></label>
-            <button type="submit">Create snapshot</button>
-            <pre id="snapshotResult" class="result"></pre>
-          </form>
+          <div class="panel">
+            <h3>Sync status</h3>
+            <p class="muted">
+              Manual MT5 snapshots are hidden in Step 28 because the system will use MT5 investor-view sync.
+              Sync interval target: every 20 minutes.
+            </p>
+            <ul class="clean-list">
+              <li>Balance and equity come from MT5 snapshots.</li>
+              <li>Deposits and withdrawals are detected from MT5 movement history.</li>
+              <li>Unclassified movements do not affect client balances until admin review.</li>
+            </ul>
+          </div>
         </div>
       </section>
 

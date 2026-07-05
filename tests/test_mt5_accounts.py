@@ -238,12 +238,14 @@ def test_client_visible_account_includes_read_only_info_but_not_master_password(
 
     assert visible["nickname"] == "Main Cent Account"
     assert visible["investor_login"] == "123456-investor"
-    assert visible["investor_password"] == "investor-password"
+    assert "investor_password" not in visible
     assert visible["balance"] == "2700"
     assert visible["equity"] == "2710"
-    assert visible["read_only_notice"].startswith("Read-only access")
+    assert visible["read_only_mode"] == "true"
+    assert visible["read_only_notice"].startswith("Read-only MT5 investor access")
     assert "sync_password" not in visible
     assert "master-password" not in str(visible)
+    assert "investor-password" not in str(visible)
 
 
 def test_admin_visible_account_masks_passwords():
@@ -260,8 +262,10 @@ def test_admin_visible_account_masks_passwords():
 
     visible = admin_visible_mt5_account(account)
 
-    assert visible["sync_password"] == "********"
+    assert "sync_password" not in visible
     assert visible["investor_password"] == "********"
+    assert visible["credential_mode"] == "investor_view_only"
+    assert visible["master_password_required"] == "false"
     assert "master-password" not in str(visible)
     assert "investor-password" not in str(visible)
 

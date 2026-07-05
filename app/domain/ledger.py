@@ -57,6 +57,14 @@ WITHDRAWAL_CLOSING_ENTRY_TYPES = {
 }
 
 
+# STEP 28 metadata keys.
+# These allow us to keep the ledger immutable while still tracking
+# whether an MT5 movement has been classified by the admin.
+CLASSIFICATION_STATUS_KEY = "classification_status"
+CLASSIFICATION_UNCLASSIFIED = "unclassified"
+CLASSIFICATION_CLASSIFIED = "classified"
+
+
 @dataclass(frozen=True)
 class LedgerEntry:
     """One immutable financial history record.
@@ -67,6 +75,11 @@ class LedgerEntry:
 
     Pending/requested entries do not affect capital until an effective entry is created.
     Entries that belong to the same workflow share the same transaction_id.
+
+    Step 28 rule:
+    Unclassified MT5-detected money movements must not affect client balances.
+    They become balance-affecting only when the admin classification creates
+    an effective ledger entry.
     """
 
     group_id: str
@@ -91,3 +104,37 @@ class LedgerEntry:
             LedgerEntryType.EXTERNAL_COMMISSION_EARNED,
             LedgerEntryType.COMMISSION_WITHDRAWN,
         }
+
+    def is_pending_withdrawal(self) -> bool:
+        return self.entry_type in PENDING_WITHDRAWAL_ENTRY_TYPES
+
+    def closes_withdrawal_workflow(self) -> bool:
+        return self.entry_type in WITHDRAWAL_CLOSING_ENTRY_TYPES
+
+    def is_effective_deposit(self) -> bool:
+        return self.entry_type == LedgerEntryType.DEPOSIT_EFFECTIVE
+
+    def is_effective_withdrawal(self) -> bool:
+        return self.entry_type == LedgerEntryType.WITHDRAWAL_EFFECTIVE
+
+    def is_unclassified_mt5_movement(self) -> bool:
+        return self.metadata.get(CLASSIFICATION_STATUS_KEY) == CLASSIFICATION_UNCLASSIFIED
+
+    def is_classified_mt5_movement(self) -> bool:
+        return self.metadata.get(CLASSIFICATION_STATUS_KEY) == CLASSIFICATION_CLASSIFIED
+
+    def effective_balance_amount(self) -> Decimal:
+        """Amount included in effective client balance.
+
+        If the entry does not affect client balance, it returns zero.
+        This makes balance calculations safer and keeps pending/unclassified
+        movements out of the client dashboard.
+        """
+
+        if not self.affects_client_balance():
+            return Decimal("0")
+
+        if self.is_unclassified_mt5_movement():
+            return Decimal("0")
+
+        return self.amount

@@ -41,7 +41,12 @@ class SecretValue:
 
 @dataclass(frozen=True)
 class MT5Account:
-    """One MT5 account tracked inside one independent group/pool."""
+    """One MT5 account tracked inside one independent group/pool.
+
+    Step 28 rule:
+    This portal uses MT5 accounts as read-only financial data sources.
+    It must never place trades, modify trades, or use trading/master access.
+    """
 
     group_id: str
     nickname: str
@@ -63,6 +68,10 @@ class MT5Account:
 
     def is_cent_account(self) -> bool:
         return self.display_divisor == Decimal("100")
+
+    def is_read_only(self) -> bool:
+        """MT5 integration is view-only/investor-only in Step 28."""
+        return True
 
 
 @dataclass(frozen=True)

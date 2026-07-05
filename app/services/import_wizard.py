@@ -10,7 +10,12 @@ from app.domain.import_wizard import (
     MovementClassification,
     MovementClassificationDecision,
 )
-from app.domain.ledger import LedgerEntry, LedgerEntryType
+from app.domain.ledger import (
+    CLASSIFICATION_CLASSIFIED,
+    CLASSIFICATION_STATUS_KEY,
+    LedgerEntry,
+    LedgerEntryType,
+)
 from app.domain.portal import GroupMembership
 
 ZERO = Decimal("0")
@@ -41,7 +46,11 @@ NEGATIVE_CLASSIFICATIONS = {
 
 
 def _active_members(memberships: list[GroupMembership], group_id: str) -> list[GroupMembership]:
-    return [membership for membership in memberships if membership.group_id == group_id and membership.is_active]
+    return [
+        membership
+        for membership in memberships
+        if membership.group_id == group_id and membership.is_active
+    ]
 
 
 def _require_client_id(decision: MovementClassificationDecision) -> str:
@@ -53,30 +62,67 @@ def _require_client_id(decision: MovementClassificationDecision) -> str:
 def _split_equally(amount: Decimal, members: list[GroupMembership]) -> list[tuple[str, Decimal]]:
     if not members:
         raise ValueError("At least one active group member is required")
+
     share = amount / Decimal(len(members))
     return [(member.client_id, share) for member in members]
 
 
-def _split_by_percentage(amount: Decimal, members: list[GroupMembership]) -> list[tuple[str, Decimal]]:
+def _split_by_percentage(
+    amount: Decimal,
+    members: list[GroupMembership],
+) -> list[tuple[str, Decimal]]:
     if not members:
         raise ValueError("At least one active group member is required")
+
     total_capital = sum((member.effective_capital for member in members), ZERO)
+
     if total_capital <= ZERO:
         raise ValueError("Percentage split requires positive effective capital")
-    return [(member.client_id, amount * (member.effective_capital / total_capital)) for member in members]
+
+    return [
+        (member.client_id, amount * (member.effective_capital / total_capital))
+        for member in members
+    ]
 
 
 def _base_metadata(decision: MovementClassificationDecision) -> dict[str, str]:
     movement = decision.movement
+
     metadata = {
         "source": "existing_group_import_wizard",
         "movement_id": movement.movement_id,
         "mt5_comment": movement.comment,
         "classification": decision.classification.value,
+        CLASSIFICATION_STATUS_KEY: CLASSIFICATION_CLASSIFIED,
     }
+
     if movement.mt5_account_id:
         metadata["source_mt5_account_id"] = movement.mt5_account_id
+
+    # These properties exist after the Step 28 import_wizard domain patch.
+    # getattr keeps this service safe even if an older object is passed in tests.
+    label = getattr(decision, "label", None)
+    admin_bucket = getattr(decision, "admin_bucket", None)
+    direction = getattr(decision, "direction", None)
+
+    if label:
+        metadata["classification_label"] = str(label)
+
+    if admin_bucket:
+        metadata["admin_bucket"] = str(admin_bucket)
+
+    if direction:
+        metadata["movement_direction"] = str(direction.value if hasattr(direction, "value") else direction)
+
     return metadata
+
+
+def _effective_date(decision: MovementClassificationDecision):
+    effective_on = getattr(decision, "effective_on", None)
+    if effective_on:
+        return effective_on
+
+    return decision.effective_date or decision.movement.occurred_on
 
 
 def _entry(
@@ -99,7 +145,7 @@ def _entry(
         transaction_id=transaction_id,
         entry_type=entry_type,
         amount=amount,
-        effective_date=decision.effective_date or decision.movement.occurred_on,
+        effective_date=_effective_date(decision),
         description=description,
         created_by_user_id=created_by_user_id,
         metadata={**_base_metadata(decision), **(metadata or {})},
@@ -114,10 +160,13 @@ def entries_for_classification(
     created_by_user_id: str | None = None,
 ) -> list[LedgerEntry]:
     movement = decision.movement
+
     if movement.amount == ZERO:
         raise ValueError("Detected movement amount cannot be zero")
+
     if movement.is_addition and decision.classification not in POSITIVE_CLASSIFICATIONS:
         raise ValueError("Positive MT5 movement needs an addition classification")
+
     if not movement.is_addition and decision.classification not in NEGATIVE_CLASSIFICATIONS:
         raise ValueError("Negative MT5 movement needs a withdrawal classification")
 
@@ -187,7 +236,10 @@ def entries_for_classification(
             )
         ]
 
-    if decision.classification in {MovementClassification.SHARED_GROUP_EXPENSE, MovementClassification.BROKER_FEE}:
+    if decision.classification in {
+        MovementClassification.SHARED_GROUP_EXPENSE,
+        MovementClassification.BROKER_FEE,
+    }:
         return [
             _entry(
                 group_id=group_id,
@@ -233,6 +285,7 @@ def entries_for_classification(
     if decision.classification == MovementClassification.MIXED_COMMISSION_WITHDRAWAL:
         entries: list[LedgerEntry] = []
         remaining = amount
+
         if decision.external_amount and decision.external_amount > ZERO:
             entries.append(
                 _entry(
@@ -247,6 +300,7 @@ def entries_for_classification(
                 )
             )
             remaining -= decision.external_amount
+
         for label, client_id, split_amount in (
             ("partner 1 commission", decision.partner_1_client_id, decision.partner_1_amount),
             ("partner 2 commission", decision.partner_2_client_id, decision.partner_2_amount),
@@ -254,6 +308,7 @@ def entries_for_classification(
             if split_amount and split_amount > ZERO:
                 if not client_id:
                     raise ValueError(f"{label} amount requires a client id")
+
                 entries.append(
                     _entry(
                         group_id=group_id,
@@ -267,8 +322,29 @@ def entries_for_classification(
                     )
                 )
                 remaining -= split_amount
+
+        dynamic_partner_amounts = getattr(decision, "dynamic_partner_amounts", {}) or {}
+
+        for partner_client_id, partner_amount in dynamic_partner_amounts.items():
+            if partner_amount and partner_amount > ZERO:
+                entries.append(
+                    _entry(
+                        group_id=group_id,
+                        decision=decision,
+                        entry_type=LedgerEntryType.COMMISSION_WITHDRAWN,
+                        amount=-partner_amount,
+                        client_id=partner_client_id,
+                        description=f"{description} - dynamic partner commission",
+                        transaction_id=transaction_id,
+                        metadata={"dynamic_partner_client_id": partner_client_id},
+                        created_by_user_id=created_by_user_id,
+                    )
+                )
+                remaining -= partner_amount
+
         if remaining != ZERO:
             raise ValueError("Mixed commission split amounts must equal the MT5 withdrawal amount")
+
         return entries
 
     if decision.classification == MovementClassification.TRANSFER_TO_NEW_MT5_ACCOUNT:
@@ -298,8 +374,10 @@ def entries_for_classification(
             transaction_id=transaction_id,
             created_by_user_id=created_by_user_id,
         )
+
         if not decision.to_mt5_account_id:
             return [pending]
+
         completed = LedgerEntry(
             group_id=group_id,
             client_id=None,
@@ -307,11 +385,15 @@ def entries_for_classification(
             transaction_id=transaction_id,
             entry_type=LedgerEntryType.TRANSFER_COMPLETED,
             amount=amount,
-            effective_date=decision.effective_date or movement.occurred_on,
+            effective_date=_effective_date(decision),
             description="Imported internal transfer completed",
             created_by_user_id=created_by_user_id,
-            metadata={**_base_metadata(decision), "to_mt5_account_id": decision.to_mt5_account_id},
+            metadata={
+                **_base_metadata(decision),
+                "to_mt5_account_id": decision.to_mt5_account_id,
+            },
         )
+
         return [pending, completed]
 
     if decision.classification in {
@@ -319,10 +401,8 @@ def entries_for_classification(
         MovementClassification.BROKER_CORRECTION,
         MovementClassification.RETURNED_PENDING_TRANSFER,
     }:
-        # Returned transfer/broker correction usually needs an admin-chosen client until
-        # we add group-level cash-reserve accounting. Keeping it client-linked makes the
-        # result auditable and visible in the ledger.
         signed_amount = movement.amount
+
         return [
             _entry(
                 group_id=group_id,
@@ -351,6 +431,7 @@ def review_import_classifications(
     lines: list[ImportReviewLine] = []
     total_classified = ZERO
     total_ignored = ZERO
+
     for decision in decisions:
         entries = entries_for_classification(
             group_id=group_id,
@@ -358,20 +439,26 @@ def review_import_classifications(
             decision=decision,
             created_by_user_id=created_by_user_id,
         )
+
         if decision.classification == MovementClassification.IGNORE:
             total_ignored += decision.movement.absolute_amount
         else:
             total_classified += decision.movement.absolute_amount
+
         ledger_entries.extend(entries)
+
         lines.append(
             ImportReviewLine(
                 movement_id=decision.movement.movement_id,
                 classification=decision.classification,
                 amount=decision.movement.amount,
                 generated_entry_count=len(entries),
-                description=decision.description or decision.movement.comment or decision.classification.value,
+                description=decision.description
+                or decision.movement.comment
+                or decision.classification.value,
             )
         )
+
     return ImportWizardReview(
         group_id=group_id,
         import_mode=import_mode,

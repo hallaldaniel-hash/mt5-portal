@@ -111,8 +111,11 @@ def test_mt5_account_snapshot_cent_conversion_and_client_view() -> None:
     assert account_response.status_code == 201
     account = account_response.json()
     account_id = account["account_id"]
-    assert account["sync_password"] == "********"
+    assert "sync_password" not in account
     assert account["investor_password"] == "********"
+    assert account["read_only_mode"] is True
+    assert account["credential_mode"] == "investor_view_only"
+    assert account["master_password_required"] is False
 
     snapshot_response = client.post(
         f"/api/mt5-accounts/{account_id}/snapshots",
@@ -131,7 +134,10 @@ def test_mt5_account_snapshot_cent_conversion_and_client_view() -> None:
     assert closed_balance["closed_balance"] == "2700"
 
     client_view = client.get(f"/api/groups/{group_id}/mt5-client-view").json()
-    assert client_view[0]["investor_password"] == "readonly-password"
+    assert "investor_password" not in client_view[0]
+    assert client_view[0]["read_only_mode"] == "true"
+    assert client_view[0]["read_only_notice"].startswith("Read-only MT5 investor access")
+    assert "readonly-password" not in str(client_view[0])
     assert "sync_password" not in client_view[0]
     assert client_view[0]["balance"] == "2700"
 
