@@ -1,0 +1,504 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>MT5 Client Portal</title>
+  <link rel="icon" href="/static/favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="background-grid" aria-hidden="true"></div>
+  <div class="floating-orb orb-one" aria-hidden="true"></div>
+  <div class="floating-orb orb-two" aria-hidden="true"></div>
+  <div class="floating-symbol symbol-xau" aria-hidden="true">XAU/USD</div>
+  <div class="floating-symbol symbol-mt5" aria-hidden="true">MT5</div>
+
+  <header class="topbar">
+    <div class="brand-block">
+      <div class="brand-mark" aria-hidden="true">↗</div>
+      <div>
+        <p class="eyebrow">Gold strategy portal</p>
+        <h1>MT5 Client Portal</h1>
+        <p class="muted">A clean dashboard for client balances, MT5 account tracking, workflow approvals, and ledger exports.</p>
+      </div>
+    </div>
+    <div class="top-actions">
+      <span id="sessionBadge" class="badge">Not logged in</span>
+      <button id="logoutButton" class="secondary hidden" type="button">Logout</button>
+      <a class="docs-link" href="/docs" target="_blank" rel="noreferrer">API Docs</a>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="hero-strip">
+      <div class="market-card">
+        <span>Pair</span>
+        <strong>XAU/USD</strong>
+        <small>Gold bot allocation</small>
+      </div>
+      <div class="market-card">
+        <span>Model</span>
+        <strong>Cent Accounts</strong>
+        <small>Values normalized to USD</small>
+      </div>
+      <div class="market-card">
+        <span>Controls</span>
+        <strong>Admin Ledger</strong>
+        <small>Deposits, withdrawals, expenses</small>
+      </div>
+    </section>
+    <section id="authPanel" class="card">
+      <h2>Login</h2>
+      <p class="muted">Create the first admin once, then log in as admin or client.</p>
+      <div class="two-col">
+        <form id="setupAdminForm" class="form-grid panel">
+          <h3>First admin setup</h3>
+          <label>Username<input name="username" required value="admin" /></label>
+          <label>Password<input name="password" type="password" required minlength="6" value="secret123" /></label>
+          <button type="submit">Create first admin</button>
+          <pre id="setupAdminResult" class="result"></pre>
+        </form>
+
+        <form id="loginForm" class="form-grid panel">
+          <h3>Login</h3>
+          <label>Username<input name="username" required /></label>
+          <label>Password<input name="password" type="password" required /></label>
+          <button type="submit">Login</button>
+          <pre id="loginResult" class="result"></pre>
+        </form>
+      </div>
+      <div class="two-col auth-extra">
+        <form id="passwordResetRequestForm" class="form-grid panel">
+          <h3>Forgot password</h3>
+          <p class="muted">Clients can reset by email once an email is saved on their profile.</p>
+          <label>Username or email<input name="identifier" required /></label>
+          <button type="submit">Send reset link</button>
+          <pre id="passwordResetRequestResult" class="result"></pre>
+        </form>
+        <form id="passwordResetConfirmForm" class="form-grid panel">
+          <h3>Set new password</h3>
+          <p class="muted">Local development shows a reset token here. Production will email a private link instead.</p>
+          <label>Reset token<input name="token" required /></label>
+          <label>New password<input name="new_password" type="password" required minlength="6" /></label>
+          <button type="submit">Reset password</button>
+          <pre id="passwordResetConfirmResult" class="result"></pre>
+        </form>
+      </div>
+    </section>
+
+    <section id="adminPanel" class="hidden">
+      <section class="card">
+        <div class="section-head">
+          <div>
+            <h2>Admin dashboard</h2>
+            <p class="muted">Create clients, groups, memberships, deposits, and MT5 account snapshots.</p>
+          </div>
+          <button id="refreshButton" type="button">Refresh lists</button>
+        </div>
+        <div id="adminSummary" class="summary-grid"></div>
+      </section>
+
+      <section class="card">
+        <h2>Admin setup</h2>
+        <div class="two-col">
+          <form id="clientForm" class="form-grid panel">
+            <h3>Create client login</h3>
+            <label>Username<input name="username" required /></label>
+            <label>Password<input name="password" type="password" required minlength="6" /></label>
+            <label>Display name<input name="display_name" required /></label>
+            <label>Email optional<input name="email" type="email" /></label>
+            <label class="checkbox"><input name="email_reports_opt_in" type="checkbox" /> Email reports opt-in</label>
+            <button type="submit">Create client</button>
+            <pre id="clientResult" class="result"></pre>
+          </form>
+
+          <form id="groupForm" class="form-grid panel">
+            <h3>Create group</h3>
+            <label>Group name<input name="name" required /></label>
+            <label>Currency<input name="currency" value="USD" /></label>
+            <label>Total commission rate<input name="total_rate" value="0.34" /></label>
+            <label>External rate<input name="external_rate" value="0.15" /></label>
+            <label>Partner 1 rate<input name="partner_1_rate" value="0.095" /></label>
+            <label>Partner 2 rate<input name="partner_2_rate" value="0.095" /></label>
+            <button type="submit">Create group</button>
+            <pre id="groupResult" class="result"></pre>
+          </form>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Groups and deposits</h2>
+        <div class="two-col">
+          <form id="memberForm" class="form-grid panel">
+            <h3>Add client to group</h3>
+            <label>Group<select name="group_id" id="memberGroupSelect" required></select></label>
+            <label>Client<select name="client_id" id="memberClientSelect" required></select></label>
+            <label>Initial/effective capital<input name="effective_capital" value="0" /></label>
+            <label>Role<select name="role"><option value="normal">Normal</option><option value="partner">Partner</option></select></label>
+            <button type="submit">Add member</button>
+            <pre id="memberResult" class="result"></pre>
+          </form>
+
+          <form id="depositForm" class="form-grid panel">
+            <h3>Record deposit</h3>
+            <label>Group<select name="group_id" id="depositGroupSelect" required></select></label>
+            <label>Client<select name="client_id" id="depositClientSelect" required></select></label>
+            <label>Amount USD<input name="amount" value="100" required /></label>
+            <label>Effective date<input name="effective_date" type="date" required /></label>
+            <label>Description<input name="description" placeholder="Optional" /></label>
+            <label class="checkbox"><input name="make_effective_now" type="checkbox" /> Immediately make effective for testing</label>
+            <button type="submit">Record deposit</button>
+            <pre id="depositResult" class="result"></pre>
+          </form>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>MT5 accounts</h2>
+        <div class="two-col">
+          <form id="mt5Form" class="form-grid panel">
+            <h3>Add MT5 account</h3>
+            <label>Group<select name="group_id" id="mt5GroupSelect" required></select></label>
+            <label>Nickname<input name="nickname" required value="Main Cent Account" /></label>
+            <label>Broker name<input name="broker_name" required /></label>
+            <label>Server<input name="server" required /></label>
+            <label>Login<input name="login" required /></label>
+            <label>Sync/master password<input name="sync_password" type="password" required /></label>
+            <label>Investor login<input name="investor_login" required /></label>
+            <label>Investor password<input name="investor_password" type="password" required /></label>
+            <label>Status<select name="status"><option value="pending">Pending</option><option value="live">Live</option></select></label>
+            <label class="checkbox"><input name="is_cent_account" type="checkbox" checked /> Cent account, divide MT5 values by 100</label>
+            <button type="submit">Create MT5 account</button>
+            <pre id="mt5Result" class="result"></pre>
+          </form>
+
+          <form id="snapshotForm" class="form-grid panel">
+            <h3>Add manual MT5 snapshot</h3>
+            <label>MT5 account<select name="account_id" id="snapshotAccountSelect" required></select></label>
+            <label>Broker server time<input name="broker_server_time" type="datetime-local" required /></label>
+            <label>Broker server day<input name="broker_server_day" type="date" required /></label>
+            <label>Raw balance<input name="raw_balance" value="270000" required /></label>
+            <label>Raw equity<input name="raw_equity" value="270000" required /></label>
+            <label>Raw profit<input name="raw_profit" value="0" /></label>
+            <button type="submit">Create snapshot</button>
+            <pre id="snapshotResult" class="result"></pre>
+          </form>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Admin dashboards</h2>
+        <div class="two-col">
+          <div class="panel">
+            <h3>Client dashboard</h3>
+            <label>Client<select id="dashboardClientSelect"></select></label>
+            <button id="loadClientDashboard" type="button">Load client dashboard</button>
+            <div id="clientDashboard" class="table-wrap"></div>
+          </div>
+          <div class="panel">
+            <h3>Group dashboard</h3>
+            <label>Group<select id="dashboardGroupSelect"></select></label>
+            <button id="loadGroupDashboard" type="button">Load group dashboard</button>
+            <div id="groupDashboard" class="table-wrap"></div>
+          </div>
+        </div>
+        <div class="two-col">
+          <form id="adminClientPasswordResetForm" class="form-grid panel">
+            <h3>Client account security</h3>
+            <label>Client<select name="client_id" id="securityClientSelect" required></select></label>
+            <label>New temporary password<input name="new_password" type="password" required minlength="6" /></label>
+            <button type="submit">Reset client password</button>
+            <button id="adminResetClient2faButton" class="secondary" type="button">Reset client 2FA</button>
+            <pre id="adminClientSecurityResult" class="result"></pre>
+          </form>
+          <div class="panel">
+            <h3>View-as audit</h3>
+            <p class="muted">Loading a client dashboard from admin mode records an audit event automatically.</p>
+            <button id="loadAuditEventsButton" type="button">Load audit events</button>
+            <div id="auditEventsView" class="table-wrap"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <div class="section-head">
+          <div>
+            <h2>Existing group import wizard</h2>
+            <p class="muted">Use this when an MT5 account already had activity before the portal existed.</p>
+          </div>
+        </div>
+        <div class="wizard-explainer">
+          <div><strong>What this does</strong><p>It converts old MT5 cash movements into clean ledger explanations.</p></div>
+          <div><strong>Important</strong><p>This step is manual for now. It does not scan live MT5 yet. You add movements like +500 deposit or -700 withdrawal, then classify what they really were.</p></div>
+          <div><strong>Safe flow</strong><p>Queue movement → Review → Finalize. Nothing is saved to the ledger until Finalize.</p></div>
+        </div>
+        <ol class="wizard-steps">
+          <li><span>1</span> Enter one old MT5 cash movement.</li>
+          <li><span>2</span> Choose what it means.</li>
+          <li><span>3</span> Review the entries that will be created.</li>
+          <li><span>4</span> Finalize only when the explanation is correct.</li>
+        </ol>
+        <div class="two-col">
+          <form id="importMovementForm" class="form-grid panel wizard-panel">
+            <h3>1. Queue one MT5 cash movement</h3>
+            <label>Group<select name="group_id" id="importGroupSelect" required></select></label>
+            <label>Import mode<select name="import_mode" id="importModeSelect">
+              <option value="percentage_import">Percentage import from rough capital</option>
+              <option value="current_balance_import">Current balance import</option>
+              <option value="historical_reconstruction">Historical reconstruction</option>
+            </select></label>
+            <label>Amount USD<input name="amount" required placeholder="Example: +500 deposit or -700 withdrawal" /></label>
+            <label>Date<input name="occurred_on" type="date" required /></label>
+            <label>MT5 account optional<select name="mt5_account_id" id="importAccountSelect"><option value="">No account selected</option></select></label>
+            <label>MT5 comment<input name="comment" placeholder="Example: Withdrawal / Deposit" /></label>
+            <label>Classification<select name="classification" required>
+              <option value="client_deposit">Client deposit</option>
+              <option value="deposit_split_equally">Deposit split equally</option>
+              <option value="deposit_split_by_percentage">Deposit split by percentage</option>
+              <option value="client_withdrawal">Client withdrawal</option>
+              <option value="shared_group_expense">Shared group expense</option>
+              <option value="external_commission_withdrawal">External commission withdrawal</option>
+              <option value="partner_commission_withdrawal">Partner commission withdrawal</option>
+              <option value="mixed_commission_withdrawal">Mixed commission withdrawal</option>
+              <option value="transfer_to_new_mt5_account">Transfer to new MT5 account</option>
+              <option value="transfer_to_existing_mt5_account">Transfer to existing MT5 account</option>
+              <option value="broker_fee">Broker fee</option>
+              <option value="broker_correction">Broker correction</option>
+              <option value="manual_adjustment">Manual adjustment</option>
+              <option value="ignore">Ignore / already handled</option>
+            </select></label>
+            <label>Client if needed<select name="client_id" id="importClientSelect"><option value="">No client</option></select></label>
+            <label>Destination MT5 if needed<select name="to_mt5_account_id" id="importToAccountSelect"><option value="">No destination</option></select></label>
+            <label>Description<input name="description" placeholder="How this should appear in the ledger" /></label>
+            <button type="submit">Queue movement only</button>
+            <pre id="importMovementResult" class="result"></pre>
+          </form>
+
+          <div class="panel">
+            <h3>2. Review & finalize</h3>
+            <p class="muted">Queued classifications are not saved to the ledger until you click Finalize import. Use Review first to understand what the portal will create.</p>
+            <div id="importQueue" class="table-wrap"></div>
+            <div class="button-row">
+              <button id="reviewImportButton" type="button">Review import</button>
+              <button id="finalizeImportButton" type="button">Finalize import</button>
+              <button id="clearImportButton" class="secondary" type="button">Clear list</button>
+            </div>
+            <div id="importWizardResult" class="result"></div>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Admin financial workflows</h2>
+        <p class="muted">Use the workflow inbox first. It shows pending items with buttons so you do not need to copy ledger IDs manually.</p>
+        <div class="panel workflow-panel">
+          <div class="section-head">
+            <div>
+              <h3>Workflow inbox</h3>
+              <p class="muted">Pending deposits, withdrawals, expenses, and internal transfers for the selected group.</p>
+            </div>
+            <button id="loadWorkflowInboxButton" type="button">Load workflow inbox</button>
+          </div>
+          <label>Group<select id="workflowGroupSelect"></select></label>
+          <div id="workflowInbox" class="workflow-inbox"></div>
+          <pre id="workflowResult" class="result"></pre>
+        </div>
+
+        <p class="muted workflow-note">The forms below are still available for advanced/manual testing.</p>
+        <div class="two-col">
+          <form id="adminWithdrawalActionForm" class="form-grid panel">
+            <h3>Withdrawal actions</h3>
+            <label>Ledger entry ID<input name="entry_id" required placeholder="Paste withdrawal entry id" /></label>
+            <label>Action<select name="action"><option value="approve">Approve</option><option value="reject">Reject</option><option value="effective">Make effective</option><option value="paid">Mark paid</option></select></label>
+            <label>Effective date<input name="effective_date" type="date" /></label>
+            <label>Reject reason<input name="reason" placeholder="Required only when rejecting" /></label>
+            <button type="submit">Run withdrawal action</button>
+            <pre id="adminWithdrawalActionResult" class="result"></pre>
+          </form>
+
+          <form id="expenseForm" class="form-grid panel">
+            <h3>Shared expense</h3>
+            <label>Group<select name="group_id" id="expenseGroupSelect" required></select></label>
+            <label>Amount USD<input name="amount" value="50" required /></label>
+            <label>Effective date<input name="effective_date" type="date" required /></label>
+            <label>Description<input name="description" required value="Shared expense" /></label>
+            <label class="checkbox"><input name="make_effective_now" type="checkbox" /> Immediately make expense effective for testing</label>
+            <button type="submit">Record expense</button>
+            <pre id="expenseResult" class="result"></pre>
+          </form>
+        </div>
+
+        <div class="two-col">
+          <form id="internalTransferForm" class="form-grid panel">
+            <h3>Internal transfer pending</h3>
+            <label>Group<select name="group_id" id="transferGroupSelect" required></select></label>
+            <label>From MT5 account<select name="from_mt5_account_id" id="transferFromAccountSelect" required></select></label>
+            <label>Amount USD<input name="amount" value="650" required /></label>
+            <label>Description<input name="description" required value="Pending transfer to new MT5 account" /></label>
+            <button type="submit">Record transfer pending</button>
+            <pre id="internalTransferResult" class="result"></pre>
+          </form>
+
+          <form id="completeTransferForm" class="form-grid panel">
+            <h3>Complete internal transfer</h3>
+            <label>Pending transfer entry ID<input name="entry_id" required placeholder="Paste transfer_pending entry id" /></label>
+            <label>To MT5 account<select name="to_mt5_account_id" id="transferToAccountSelect" required></select></label>
+            <button type="submit">Complete transfer</button>
+            <pre id="completeTransferResult" class="result"></pre>
+          </form>
+        </div>
+
+        <div class="two-col">
+          <form id="dailyCloseForm" class="form-grid panel">
+            <h3>Finalize daily close</h3>
+            <label>Group<select name="group_id" id="dailyCloseGroupSelect" required></select></label>
+            <label>Broker server day<input name="broker_server_day" type="date" required /></label>
+            <label>Previous broker server day<input name="previous_broker_server_day" type="date" required /></label>
+            <label>Manual profit/loss override optional<input name="manual_profit_loss" placeholder="Optional" /></label>
+            <label>Override reason<input name="override_reason" placeholder="Required if using override" /></label>
+            <button type="submit">Finalize daily close</button>
+            <pre id="dailyCloseResult" class="result"></pre>
+          </form>
+
+          <form id="commissionWithdrawalForm" class="form-grid panel">
+            <h3>Commission withdrawal</h3>
+            <label>Group<select name="group_id" id="commissionGroupSelect" required></select></label>
+            <label>Amount USD<input name="amount" value="10" required /></label>
+            <label>Client optional<select name="client_id" id="commissionClientSelect"><option value="">External commission</option></select></label>
+            <label>Description<input name="description" required value="Commission withdrawn" /></label>
+            <button type="submit">Record commission withdrawal</button>
+            <button id="loadExternalCommission" class="secondary" type="button">Load external payable</button>
+            <pre id="commissionWithdrawalResult" class="result"></pre>
+          </form>
+        </div>
+
+        <div class="two-col">
+          <form id="manualAdjustmentForm" class="form-grid panel">
+            <h3>Manual adjustment</h3>
+            <label>Group<select name="group_id" id="adjustmentGroupSelect" required></select></label>
+            <label>Client<select name="client_id" id="adjustmentClientSelect" required></select></label>
+            <label>Amount USD<input name="amount" placeholder="Example: -5 or 5" required /></label>
+            <label>Reason<input name="reason" required placeholder="Required audit reason" /></label>
+            <button type="submit">Record adjustment</button>
+            <pre id="manualAdjustmentResult" class="result"></pre>
+          </form>
+
+          <div class="panel">
+            <h3>Group ledger</h3>
+            <label>Group<select id="ledgerGroupSelect"></select></label>
+            <button id="loadLedgerButton" type="button">Load ledger</button>
+            <button id="loadDailyClosesButton" class="secondary" type="button">Load daily closes</button>
+            <button id="downloadGroupLedgerButton" class="secondary" type="button">Download ledger CSV</button>
+            <div id="ledgerView" class="table-wrap"></div>
+          </div>
+        </div>
+      </section>
+
+    </section>
+
+    <section id="clientPanel" class="hidden client-app-shell">
+      <aside class="client-sidebar">
+        <div class="sidebar-brand">
+          <strong>Client Portal</strong>
+          <span id="clientSidebarName">My account</span>
+        </div>
+        <button class="client-tab active" type="button" data-client-tab="overview">Overview</button>
+        <button class="client-tab" type="button" data-client-tab="balance">Balance & Percentage</button>
+        <button class="client-tab" type="button" data-client-tab="withdrawals">Withdrawals</button>
+        <button class="client-tab" type="button" data-client-tab="transactions">Transaction History</button>
+        <button class="client-tab" type="button" data-client-tab="mt5">MT5 Read-only</button>
+        <button class="client-tab" type="button" data-client-tab="reports">Reports</button>
+        <button class="client-tab" type="button" data-client-tab="about">About / Profile</button>
+      </aside>
+
+      <section class="client-main">
+        <section class="card client-tab-page active" data-client-page="overview">
+          <h2>Overview</h2>
+          <p class="muted">A quick summary of your portfolio and available balance.</p>
+          <div id="clientSelfDashboard" class="table-wrap"></div>
+        </section>
+
+        <section class="card client-tab-page" data-client-page="balance">
+          <h2>Balance & Percentage</h2>
+          <p class="muted">Your capital base, finalized balance, available balance, and per-group status.</p>
+          <div id="clientBalanceDetails" class="table-wrap"></div>
+        </section>
+
+        <section class="card client-tab-page" data-client-page="withdrawals">
+          <form id="clientWithdrawalForm" class="form-grid panel">
+            <h3>Request withdrawal</h3>
+            <p class="muted">Minimum withdrawal is $10. Admin approval is required before payment.</p>
+            <label>Group<select name="group_id" id="clientWithdrawalGroupSelect" required></select></label>
+            <label>Amount USD<input name="amount" value="10" required /></label>
+            <label>Description<input name="description" placeholder="Optional" /></label>
+            <button type="submit">Submit request</button>
+            <pre id="clientWithdrawalResult" class="result"></pre>
+          </form>
+        </section>
+
+        <section class="card client-tab-page" data-client-page="transactions">
+          <div class="section-head">
+            <div>
+              <h2>Transaction history</h2>
+              <p class="muted">Your deposits, withdrawals, daily profit/loss allocations, expenses, and commissions.</p>
+            </div>
+            <div class="top-actions">
+              <button id="loadClientLedgerButton" type="button">Load history</button>
+              <button id="downloadClientLedgerButton" class="secondary" type="button">Download CSV</button>
+            </div>
+          </div>
+          <div id="clientLedgerView" class="table-wrap"></div>
+        </section>
+
+        <section class="card client-tab-page" data-client-page="mt5">
+          <h2>MT5 read-only info</h2>
+          <p class="muted">These credentials are view-only. They cannot trade, withdraw, or modify the MT5 account.</p>
+          <div id="clientMt5Accounts" class="table-wrap"></div>
+        </section>
+
+        <section class="card client-tab-page" data-client-page="reports">
+          <h2>Reports</h2>
+          <p class="muted">Monthly PDF/email reports will appear here once report generation is enabled.</p>
+          <div class="empty-state">No monthly reports generated yet.</div>
+        </section>
+
+        <section class="card client-tab-page" data-client-page="about">
+          <h2>About / Profile</h2>
+          <p class="muted">Manage your email, notification preference, password, and 2FA preference. Username cannot be changed.</p>
+          <div id="clientProfileSummary" class="profile-summary"></div>
+          <div class="two-col">
+            <form id="clientProfileForm" class="form-grid panel">
+              <h3>Email & reports</h3>
+              <label>Email<input name="email" type="email" placeholder="No email added yet" /></label>
+              <label class="checkbox"><input name="email_reports_opt_in" type="checkbox" /> Receive email reports/notifications</label>
+              <button type="submit">Save profile</button>
+              <pre id="clientProfileResult" class="result"></pre>
+            </form>
+            <form id="clientPasswordForm" class="form-grid panel">
+              <h3>Change password</h3>
+              <label>Current password<input name="current_password" type="password" required /></label>
+              <label>New password<input name="new_password" type="password" required minlength="6" /></label>
+              <button type="submit">Change password</button>
+              <pre id="clientPasswordResult" class="result"></pre>
+            </form>
+          </div>
+          <form id="client2faForm" class="form-grid panel profile-security-panel">
+            <h3>Two-factor authentication</h3>
+            <p class="muted">This stores the 2FA preference. Full authenticator-code verification will be completed in a later security step.</p>
+            <label class="checkbox"><input name="enabled" type="checkbox" /> Enable 2FA preference</label>
+            <button type="submit">Save 2FA preference</button>
+            <pre id="client2faResult" class="result"></pre>
+          </form>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <p>This is still a local development build. Do not expose it publicly until deployment hardening is finished.</p>
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
